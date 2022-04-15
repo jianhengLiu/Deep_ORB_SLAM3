@@ -191,7 +191,7 @@ if __name__=="__main__":
     if args.verbose2:
         print "compared_pose_pairs %d pairs"%(len(trans_error))
         print "absolute_translational_error.rmse %f m"%numpy.sqrt(numpy.dot(trans_error,trans_error) / len(trans_error))
-        print "absolute_translational_errorGT.rmse %f m"%numpy.sqrt(numpy.dot(trans_errorGT,trans_errorGT) / len(trans_errorGT))
+        print "(Sim3?)absolute_translational_errorGT.rmse %f m"%numpy.sqrt(numpy.dot(trans_errorGT,trans_errorGT) / len(trans_errorGT))
 
     if args.save_associations:
         file = open(args.save_associations,"w")

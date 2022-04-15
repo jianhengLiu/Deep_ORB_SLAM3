@@ -251,6 +251,10 @@ add_executable(stereo_inertial_tum_vi
         Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
 target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
 
+add_executable(deep_stereo_inertial_tum_vi
+        Examples/Stereo-Inertial/deep_stereo_inertial_tum_vi.cc)
+target_link_libraries(deep_stereo_inertial_tum_vi ${PROJECT_NAME} dw)
+
 if(realsense2_FOUND)
     add_executable(stereo_inertial_realsense_t265
             Examples/Stereo-Inertial/stereo_inertial_realsense_t265.cc)

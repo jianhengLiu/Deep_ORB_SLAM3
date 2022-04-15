@@ -206,7 +206,10 @@ std::map<KeyFrame*, std::tuple<int,int>>  MapPoint::GetObservations()
     unique_lock<mutex> lock(mMutexFeatures);
     return mObservations;
 }
-
+/**
+ * @brief 返回被观测次数，双目一帧算两次，左右目各算各的
+ * @return nObs
+ */
 int MapPoint::Observations()
 {
     unique_lock<mutex> lock(mMutexFeatures);

@@ -2,7 +2,7 @@
  * @Author: Jianheng Liu
  * @Date: 2022-04-14 14:25:33
  * @LastEditors: Jianheng Liu
- * @LastEditTime: 2022-04-14 14:58:19
+ * @LastEditTime: 2022-04-15 09:30:14
  * @Description: Description
  */
 /**
@@ -76,6 +76,7 @@ int main(int argc, char** argv)
 
     vstrImageLeft.resize(num_seq);
     vstrImageRight.resize(num_seq);
+    vstrConf.resize(num_seq);
     vTimestampsCam.resize(num_seq);
     vAcc.resize(num_seq);
     vGyro.resize(num_seq);
@@ -85,7 +86,7 @@ int main(int argc, char** argv)
 
     int tot_images = 0;
     for (seq = 0; seq < num_seq; seq++) {
-        cout << "Loading images for sequence " << seq << "...";
+        cout << "Loading images for sequence " << seq << "..." << endl;
 
         string pathSeq(argv[(2 * seq) + 3]);
         string pathTimeStamps(argv[(2 * seq) + 4]);
@@ -97,12 +98,13 @@ int main(int argc, char** argv)
 
         cout << "pathCam0: " << pathCam0 << endl;
         cout << "pathCam1: " << pathCam1 << endl;
+        cout << "pathConf: " << pathConf << endl;
         cout << "pathImu: " << pathImu << endl;
 
         LoadImages(pathCam0, pathCam1, pathConf, pathTimeStamps, vstrImageLeft[seq], vstrImageRight[seq], vstrConf[seq], vTimestampsCam[seq]);
-        cout << "LOADED Cam0: " << vstrImageLeft[seq].size() << "Images!" << endl;
-        cout << "LOADED Cam1: " << vstrImageRight[seq].size() << "Images!" << endl;
-        cout << "LOADED Confidence: " << vstrConf[seq].size() << "Images!" << endl;
+        cout << "LOADED Cam0: " << vstrImageLeft[seq].size() << " images!" << endl;
+        cout << "LOADED Cam1: " << vstrImageRight[seq].size() << " images!" << endl;
+        cout << "LOADED Confidence: " << vstrConf[seq].size() << " images!" << endl;
 
         cout << "Loading IMU for sequence " << seq << "..." << endl;
         LoadIMU(pathImu, vTimestampsImu[seq], vAcc[seq], vGyro[seq]);
@@ -140,7 +142,7 @@ int main(int argc, char** argv)
     cout.precision(17);
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::IMU_STEREO, false);
+    ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::IMU_STEREO, true);
 
     cv::Mat imLeft, imRight, imConf;
     for (seq = 0; seq < num_seq; seq++) {
@@ -200,7 +202,8 @@ int main(int argc, char** argv)
 #endif
 
             // Pass the images to the SLAM system
-            SLAM.TrackStereo(imLeft, imRight, tframe, vImuMeas);
+            // SLAM.TrackStereo(imLeft, imRight, tframe, vImuMeas);
+            SLAM.TrackDeepStereo(imLeft, imRight, imConf, tframe, vImuMeas);
 
 #ifdef COMPILEDWITHC11
             std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
