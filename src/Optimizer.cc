@@ -1072,7 +1072,8 @@ int Optimizer::PoseOptimizationDeep(Frame* pFrame)
                         e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                         e->setMeasurement(obs);
                         const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2*pFrame->mvConf[i]);// Deep
+                        // e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2 * pFrame->mvConf[i]); // Deep
 
                         g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                         e->setRobustKernel(rk);
@@ -1101,8 +1102,8 @@ int Optimizer::PoseOptimizationDeep(Frame* pFrame)
                         e->setMeasurement(obs);
                         const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
                         // Eigen::Matrix3d Info = Eigen::Matrix3d::Identity() * invSigma2;
-                        Eigen::Matrix3d Info = Eigen::Matrix3d::Identity() * invSigma2 * pFrame->mvConf[i];//Deep
-                        e->setInformation(Info); 
+                        Eigen::Matrix3d Info = Eigen::Matrix3d::Identity() * invSigma2 * pFrame->mvConf[i]; // Deep
+                        e->setInformation(Info);
 
                         g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                         e->setRobustKernel(rk);
@@ -1140,8 +1141,8 @@ int Optimizer::PoseOptimizationDeep(Frame* pFrame)
                         e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                         e->setMeasurement(obs);
                         const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                        // e->setInformation(Eigen::Matrix2d::Identity() * invSigma2); 
-                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2*pFrame->mvConf[i]); // Deep
+                        // e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2 * pFrame->mvConf[i]); // Deep
 
                         g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                         e->setRobustKernel(rk);
@@ -1477,6 +1478,11 @@ void Optimizer::LocalBundleAdjustment(KeyFrame* pKF, bool* pbStopFlag, Map* pMap
                     e->setMeasurement(obs);
                     const float& invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
                     e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                    // if (pKFi->mvConf.empty()) {
+                    //     e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                    // } else {
+                    //     e->setInformation(Eigen::Matrix2d::Identity() * invSigma2 * pKFi->mvConf[leftIndex]); // Deep
+                    // }
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -1505,6 +1511,14 @@ void Optimizer::LocalBundleAdjustment(KeyFrame* pKF, bool* pbStopFlag, Map* pMap
                     const float& invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
                     Eigen::Matrix3d Info = Eigen::Matrix3d::Identity() * invSigma2;
                     e->setInformation(Info);
+                    // if (pKFi->mvConf.empty()) {
+                    //     e->setInformation(Info);
+                    // } else {
+                    //     e->setInformation(Info * pKFi->mvConf[leftIndex]); // Deep
+                    //     cout << "pKFi->mvKeysUn.size() = " << pKFi->mvKeysUn.size() << endl;
+                    //     cout << "pKFi->mvConf.size() = " << pKFi->mvConf.size() << endl;
+                    //     cout << "pKFi->mvConf[leftIndex] = " << pKFi->mvConf[leftIndex] << endl;
+                    // }
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -2456,6 +2470,7 @@ int Optimizer::OptimizeSim3(KeyFrame* pKF1, KeyFrame* pKF2, vector<MapPoint*>& v
 
 void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int& num_fixedKF, int& num_OptKF, int& num_MPs, int& num_edges, bool bLarge, bool bRecInit)
 {
+    // 获取当前地图
     Map* pCurrentMap = pKF->GetMap();
 
     int maxOpt = 10;
@@ -2467,10 +2482,13 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     const int Nd = std::min((int)pCurrentMap->KeyFramesInMap() - 2, maxOpt);
     const unsigned long maxKFid = pKF->mnId;
 
-    vector<KeyFrame*> vpOptimizableKFs;
+    // Step 1:收集惯性相关优化的关键帧
+    vector<KeyFrame*> vpOptimizableKFs; // 用于预积分优化的KF
+    // 找到关键帧连接的共视关键帧（一级相连帧)
     const vector<KeyFrame*> vpNeighsKFs = pKF->GetVectorCovisibleKeyFrames();
-    list<KeyFrame*> lpOptVisKFs;
+    list<KeyFrame*> lpOptVisKFs; // 用于视觉优化的KF
 
+    // Step 1.1:：获取惯性优化关键帧
     vpOptimizableKFs.reserve(Nd);
     vpOptimizableKFs.push_back(pKF);
     pKF->mnBALocalForKF = pKF->mnId;
@@ -2485,6 +2503,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     int N = vpOptimizableKFs.size();
 
     // Optimizable points seen by temporal optimizable keyframes
+    // Step 1.2:获取惯性关键帧的MapPoints
     list<MapPoint*> lLocalMapPoints;
     for (int i = 0; i < N; i++) {
         vector<MapPoint*> vpMPs = vpOptimizableKFs[i]->GetMapPointMatches();
@@ -2500,7 +2519,8 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Fixed Keyframe: First frame previous KF to optimization window)
-    list<KeyFrame*> lFixedKeyFrames;
+    // Step 1.3:设置惯性优化部分固定关键帧
+    list<KeyFrame*> lFixedKeyFrames; // 只提供约束不优化的KF
     if (vpOptimizableKFs.back()->mPrevKF) {
         lFixedKeyFrames.push_back(vpOptimizableKFs.back()->mPrevKF);
         vpOptimizableKFs.back()->mPrevKF->mnBAFixedForKF = pKF->mnId;
@@ -2512,6 +2532,8 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Optimizable visual KFs
+    // Step 2:收集视觉优化的关键帧
+    // Step 2.1:获取待优化的KF和MapPoints
     const int maxCovKF = 0;
     for (int i = 0, iend = vpNeighsKFs.size(); i < iend; i++) {
         if (lpOptVisKFs.size() >= maxCovKF)
@@ -2538,6 +2560,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Fixed KFs which are not covisible optimizable
+    // Step 2.1:获取只提供约束不优化的固定共视KF
     const int maxFixKF = 200;
 
     for (list<MapPoint*>::iterator lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++) {
@@ -2577,6 +2600,8 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Set Local temporal KeyFrame vertices
+    // Step 4:添加优化的顶点和边
+    // Step 4.1:添加惯性优化的顶点
     N = vpOptimizableKFs.size();
     for (int i = 0; i < N; i++) {
         KeyFrame* pKFi = vpOptimizableKFs[i];
@@ -2603,6 +2628,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Set Local visual KeyFrame vertices
+    // Step 4.2:添加视觉优化的顶点
     for (list<KeyFrame*>::iterator it = lpOptVisKFs.begin(), itEnd = lpOptVisKFs.end(); it != itEnd; it++) {
         KeyFrame* pKFi = *it;
         VertexPose* VP = new VertexPose(pKFi);
@@ -2612,6 +2638,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Set Fixed KeyFrame vertices
+    // Step 4.3:添加提供约束不优化的固定顶点
     for (list<KeyFrame*>::iterator lit = lFixedKeyFrames.begin(), lend = lFixedKeyFrames.end(); lit != lend; lit++) {
         KeyFrame* pKFi = *lit;
         VertexPose* VP = new VertexPose(pKFi);
@@ -2637,6 +2664,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Create intertial constraints
+    // Step 4.4:添加惯性约束
     vector<EdgeInertial*> vei(N, (EdgeInertial*)NULL);
     vector<EdgeGyroRW*> vegr(N, (EdgeGyroRW*)NULL);
     vector<EdgeAccRW*> vear(N, (EdgeAccRW*)NULL);
@@ -2650,9 +2678,13 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
         }
         if (pKFi->bImu && pKFi->mPrevKF->bImu && pKFi->mpImuPreintegrated) {
             pKFi->mpImuPreintegrated->SetNewBias(pKFi->mPrevKF->GetImuBias());
+            // pose
             g2o::HyperGraph::Vertex* VP1 = optimizer.vertex(pKFi->mPrevKF->mnId);
+            // vel
             g2o::HyperGraph::Vertex* VV1 = optimizer.vertex(maxKFid + 3 * (pKFi->mPrevKF->mnId) + 1);
+            // gyro
             g2o::HyperGraph::Vertex* VG1 = optimizer.vertex(maxKFid + 3 * (pKFi->mPrevKF->mnId) + 2);
+            // acc
             g2o::HyperGraph::Vertex* VA1 = optimizer.vertex(maxKFid + 3 * (pKFi->mPrevKF->mnId) + 3);
             g2o::HyperGraph::Vertex* VP2 = optimizer.vertex(pKFi->mnId);
             g2o::HyperGraph::Vertex* VV2 = optimizer.vertex(maxKFid + 3 * (pKFi->mnId) + 1);
@@ -2705,6 +2737,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     }
 
     // Set MapPoint vertices
+    // Step 4.5: 添加MapPoints顶点和约束
     const int nExpectedSize = (N + lFixedKeyFrames.size()) * lLocalMapPoints.size();
 
     // Mono
@@ -2739,8 +2772,8 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
         KeyFrame* pKFi = vpOptimizableKFs[i];
         mVisEdges[pKFi->mnId] = 0;
     }
-    for (list<KeyFrame*>::iterator lit = lFixedKeyFrames.begin(), lend = lFixedKeyFrames.end(); lit != lend; lit++) {
-        mVisEdges[(*lit)->mnId] = 0;
+    for (auto& lFixedKeyFrame : lFixedKeyFrames) {
+        mVisEdges[lFixedKeyFrame->mnId] = 0;
     }
 
     for (list<MapPoint*>::iterator lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++) {
@@ -2785,7 +2818,15 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
 
                     const float& invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave] / unc2;
                     e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
-                    // e->setInformation(Eigen::Matrix2d::Identity() * invSigma2*pKFi);// Deep
+                    // cout << "1pKFi->mvKeysUn.size() = " << pKFi->mvKeysUn.size() << endl;
+                    // cout << "1pKFi->mvConf.size() = " << pKFi->mvConf.size() << endl;
+                    // if (pKFi->mvConf.empty()) {
+                    //     e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                    // } else {
+                    //     e->setInformation(Eigen::Matrix2d::Identity() * invSigma2 * pKFi->mvConf[leftIndex]); // Deep
+
+                    //     // cout << "1pKFi->mvConf[leftIndex] = " << pKFi->mvConf[leftIndex] << endl;
+                    // }
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -2813,10 +2854,18 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
                     e->setMeasurement(obs);
 
                     // Add here uncerteinty
-                    const float unc2 = pKFi->mpCamera->uncertainty2(obs.head(2));
+                    const float unc2 = pKFi->mpCamera->uncertainty2(obs.head(2)); // =1.0f
 
                     const float& invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave] / unc2;
                     e->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
+                    // cout << "2pKFi->mvKeysUn.size() = " << pKFi->mvKeysUn.size() << endl;
+                    // cout << "2pKFi->mvConf.size() = " << pKFi->mvConf.size() << endl;
+                    // if (pKFi->mvConf.empty()) {
+                    //     e->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
+                    // } else {
+                    //     e->setInformation(Eigen::Matrix3d::Identity() * invSigma2 * pKFi->mvConf[leftIndex]); // Deep
+                    //     // cout << "2pKFi->mvConf[leftIndex] = " << pKFi->mvConf[leftIndex] << endl;
+                    // }
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -2871,14 +2920,18 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
         assert(mit->second >= 3);
     }
 
+    optimizer.setVerbose(false);
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
     float err = optimizer.activeRobustChi2();
     optimizer.optimize(opt_it); // Originally to 2
     float err_end = optimizer.activeRobustChi2();
+    // 外界设置的停止优化标志
+    // 可能在 Tracking::NeedNewKeyFrame() 里置位
     if (pbStopFlag)
         optimizer.setForceStopFlag(pbStopFlag);
 
+    // Step 6: 清除外点
     vector<pair<KeyFrame*, MapPoint*>> vToErase;
     vToErase.reserve(vpEdgesMono.size() + vpEdgesStereo.size());
 
@@ -2908,7 +2961,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
 
         if (e->chi2() > chi2Stereo2) {
             KeyFrame* pKFi = vpEdgeKFStereo[i];
-            vToErase.push_back(make_pair(pKFi, pMP));
+            vToErase.emplace_back(pKFi, pMP);
         }
     }
 
@@ -2934,6 +2987,7 @@ void Optimizer::LocalInertialBA(KeyFrame* pKF, bool* pbStopFlag, Map* pMap, int&
     for (list<KeyFrame*>::iterator lit = lFixedKeyFrames.begin(), lend = lFixedKeyFrames.end(); lit != lend; lit++)
         (*lit)->mnBAFixedForKF = 0;
 
+    // Step 7: 更新优化后的变量
     // Recover optimized data
     // Local temporal Keyframes
     N = vpOptimizableKFs.size();
@@ -3052,6 +3106,9 @@ Eigen::MatrixXd Optimizer::Marginalize(const Eigen::MatrixXd& H, const int& star
     return res;
 }
 
+/*
+@brief imu初始化时使用，优化gravity方向，ba，bg，scale
+ */
 void Optimizer::InertialOptimization(Map* pMap, Eigen::Matrix3d& Rwg, double& scale, Eigen::Vector3d& bg, Eigen::Vector3d& ba, bool bMono, Eigen::MatrixXd& covInertial, bool bFixedVel, bool bGauss, float priorG, float priorA)
 {
     Verbose::PrintMess("inertial optimization", Verbose::VERBOSITY_NORMAL);
@@ -4822,7 +4879,7 @@ int Optimizer::PoseInertialOptimizationDeepLastKeyFrame(Frame* pFrame, bool bRec
 
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave] / unc2;
                     // e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
-                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2 * pFrame->mvConf[i]);//Deep
+                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2 * pFrame->mvConf[i]); // Deep
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -4853,7 +4910,7 @@ int Optimizer::PoseInertialOptimizationDeepLastKeyFrame(Frame* pFrame, bool bRec
 
                     const float& invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave] / unc2;
                     // e->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
-                    e->setInformation(Eigen::Matrix3d::Identity() * invSigma2 * pFrame->mvConf[i]);//Deep
+                    e->setInformation(Eigen::Matrix3d::Identity() * invSigma2 * pFrame->mvConf[i]); // Deep
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -5239,7 +5296,7 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame* pFrame, bool bRecInit)
                     const float unc2 = pFrame->mpCamera->uncertainty2(obs);
 
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave] / unc2;
-                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2); 
+                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);

@@ -1,5 +1,12 @@
 /*
  * @Author: Jianheng Liu
+ * @Date: 2022-04-17 21:35:07
+ * @LastEditors: Jianheng Liu
+ * @LastEditTime: 2022-04-22 16:53:05
+ * @Description: Description
+ */
+/*
+ * @Author: Jianheng Liu
  * @Date: 2022-04-15 11:25:58
  * @LastEditors: Jianheng Liu
  * @LastEditTime: 2022-04-17 19:54:39
@@ -43,25 +50,27 @@ backward::SignalHandling sh;
 using namespace std;
 
 void LoadImagesTUMVI(const string& strPathLeft, const string& strPathRight, const string& strPathConf, const string& strPathTimes,
-    vector<string>& vstrImageLeft, vector<string>& vstrImageRight, vector<string>& vstrImageConf, vector<double>& vTimeStamps);
+    vector<string>& vstrImageLeft, vector<string>& vstrImageRight, vector<string>& vstrImageConf, vector<double>& vTimeStamps, bool bDeepFeature);
 
 void LoadIMU(const string& strImuPath, vector<double>& vTimeStamps, vector<cv::Point3f>& vAcc, vector<cv::Point3f>& vGyro);
 
 double ttrack_tot = 0;
 int main(int argc, char** argv)
 {
-    const int num_seq = (argc - 4) / 4;
+    const int num_seq = 1;
     cout << "num_seq = " << num_seq << endl;
-    bool bFileName = (((argc - 4) % 4) == 1);
+    bool bVisual = false;
+    bool bDeepFeature = true;
+    bool bFileName = true;
     string file_name;
     if (bFileName)
-        file_name = string(argv[argc - 1]);
+        file_name = "dataset-outdoors8_512_stereoi_deep_pose_feat";
 
-    if (argc < 8) {
-        cerr << endl
-             << "Usage: ./deep_stereo_inertial_tum_vi path_to_vocabulary path_to_settings path_to_image_folder_1 path_to_image_folder_2 path_to_confidence_folder path_to_times_file path_to_imu_data (trajectory_file_name)" << endl;
-        return 1;
-    }
+    // if (argc < 8) {
+    //     cerr << endl
+    //          << "Usage: ./deep_stereo_inertial_tum_vi path_to_vocabulary path_to_settings path_to_image_folder_1 path_to_image_folder_2 path_to_confidence_folder path_to_times_file path_to_imu_data (trajectory_file_name)" << endl;
+    //     return 1;
+    // }
 
     // Load all sequences:
     int seq;
@@ -88,7 +97,11 @@ int main(int argc, char** argv)
     int tot_images = 0;
     for (seq = 0; seq < num_seq; seq++) {
         cout << "Loading images for sequence " << seq << "..." << endl;
-        LoadImagesTUMVI(string(argv[4 * (seq + 1) - 1]), string(argv[4 * (seq + 1)]), string(argv[4 * (seq + 1) + 1]), string(argv[4 * (seq + 1) + 2]), vstrImageLeftFilenames[seq], vstrImageRightFilenames[seq], vstrImageConfFilenames[seq], vTimestampsCam[seq]);
+        if (bDeepFeature)
+            LoadImagesTUMVI("/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam0/feat_fine", "/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam1/feat_fine", "/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam0/conf_fine", "/home/innox/Deep_ORB_SLAM3/Examples/Stereo-Inertial/TUM_TimeStamps/dataset-outdoors8_512.txt", vstrImageLeftFilenames[seq], vstrImageRightFilenames[seq], vstrImageConfFilenames[seq], vTimestampsCam[seq], bDeepFeature);
+        else
+            LoadImagesTUMVI("/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam0/data", "/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam1/data", "/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam0/conf_fine", "/home/innox/Deep_ORB_SLAM3/Examples/Stereo-Inertial/TUM_TimeStamps/dataset-outdoors8_512.txt", vstrImageLeftFilenames[seq], vstrImageRightFilenames[seq], vstrImageConfFilenames[seq], vTimestampsCam[seq], bDeepFeature);
+
         cout << "Total images: " << vstrImageLeftFilenames[seq].size() << endl;
         cout << "Total cam ts: " << vTimestampsCam[seq].size() << endl;
         cout << "first cam ts: " << vTimestampsCam[seq][0] << endl;
@@ -96,7 +109,7 @@ int main(int argc, char** argv)
         cout << "LOADED!" << endl;
 
         cout << "Loading IMU for sequence " << seq << "...";
-        LoadIMU(string(argv[4 * (seq + 1) + 3]), vTimestampsImu[seq], vAcc[seq], vGyro[seq]);
+        LoadIMU("/home/innox/Deep_ORB_SLAM3/Examples/Stereo-Inertial/TUM_IMU/dataset-outdoors8_512.txt", vTimestampsImu[seq], vAcc[seq], vGyro[seq]);
         cout << "Total IMU meas: " << vTimestampsImu[seq].size() << endl;
         cout << "first IMU ts: " << vTimestampsImu[seq][0] << endl;
         cout << "LOADED!" << endl;
@@ -130,11 +143,8 @@ int main(int argc, char** argv)
     cout << "IMU data in the sequence: " << nImu << endl << endl;*/
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::IMU_STEREO, true, 0, file_name);
+    ORB_SLAM3::System SLAM("/home/innox/Deep_ORB_SLAM3/Vocabulary/ORBvoc.txt", "/home/innox/Deep_ORB_SLAM3/Examples/Stereo-Inertial/TUM-VI_far.yaml", ORB_SLAM3::System::IMU_STEREO, bVisual, 0, file_name);
     float imageScale = SLAM.GetImageScale();
-
-    double t_resize = 0.f;
-    double t_track = 0.f;
 
     int proccIm = 0;
     for (seq = 0; seq < num_seq; seq++) {
@@ -145,17 +155,20 @@ int main(int argc, char** argv)
         proccIm = 0;
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
         for (int ni = 0; ni < nImages[seq]; ni++, proccIm++) {
-
+            printf("Processing %dth frame.\r", ni);
             // Read image from file
-            imLeft = cv::imread(vstrImageLeftFilenames[seq][ni], cv::IMREAD_GRAYSCALE);
-            imRight = cv::imread(vstrImageRightFilenames[seq][ni], cv::IMREAD_GRAYSCALE);
+            if (bDeepFeature) {
+                imLeft = cv::imread(vstrImageLeftFilenames[seq][ni], cv::IMREAD_UNCHANGED);
+                imRight = cv::imread(vstrImageRightFilenames[seq][ni], cv::IMREAD_UNCHANGED);
+                // converTo 使用了saturate_cast，负数自动转成0，超过255自动转成255
+                // https://blog.csdn.net/xiachong27/article/details/83096008
+                imLeft.convertTo(imLeft, CV_8UC1, 50);
+                imRight.convertTo(imRight, CV_8UC1, 50);
+            } else {
+                imLeft = cv::imread(vstrImageLeftFilenames[seq][ni], cv::IMREAD_GRAYSCALE);
+                imRight = cv::imread(vstrImageRightFilenames[seq][ni], cv::IMREAD_GRAYSCALE);
+            }
             imConf = cv::imread(vstrImageConfFilenames[seq][ni], cv::IMREAD_UNCHANGED);
-
-            cv::Mat imShowConf = 255 * imConf.clone();
-            imShowConf.convertTo(imShowConf, CV_8UC1);
-            cv::applyColorMap(imShowConf, imShowConf, cv::COLORMAP_JET);
-            cv::imshow("Current Confidence Frame", imShowConf);
-            cv::waitKey(1);
 
             if (imageScale != 1.f) {
 #ifdef REGISTER_TIMES
@@ -204,6 +217,13 @@ int main(int argc, char** argv)
                      << "Failed to load confidence image at: "
                      << vstrImageConfFilenames[seq][ni] << endl;
                 return 1;
+            }
+            if (bVisual) {
+                cv::Mat imShowConf = 255 * imConf.clone();
+                imShowConf.convertTo(imShowConf, CV_8UC1);
+                cv::applyColorMap(imShowConf, imShowConf, cv::COLORMAP_JET);
+                cv::imshow("Current Confidence Frame", imShowConf);
+                cv::waitKey(1);
             }
 
             // Load imu measurements from previous frame
@@ -282,8 +302,10 @@ int main(int argc, char** argv)
     ss << now;
 
     if (bFileName) {
-        const string kf_file = "kf_" + string(argv[argc - 1]) + ".txt";
-        const string f_file = "f_" + string(argv[argc - 1]) + ".txt";
+        // const string kf_file = "kf_" + string(argv[argc - 1]) + ".txt";
+        // const string f_file = "f_" + string(argv[argc - 1]) + ".txt";
+        const string kf_file = "kf_" + file_name + ".txt";
+        const string f_file = "f_" + file_name + ".txt";
         SLAM.SaveTrajectoryEuRoC(f_file);
         SLAM.SaveKeyFrameTrajectoryEuRoC(kf_file);
     } else {
@@ -305,7 +327,7 @@ int main(int argc, char** argv)
 }
 
 void LoadImagesTUMVI(const string& strPathLeft, const string& strPathRight, const string& strPathConf, const string& strPathTimes,
-    vector<string>& vstrImageLeft, vector<string>& vstrImageRight, vector<string>& vstrImageConf, vector<double>& vTimeStamps)
+    vector<string>& vstrImageLeft, vector<string>& vstrImageRight, vector<string>& vstrImageConf, vector<double>& vTimeStamps, bool bDeepFeature)
 {
     ifstream fTimes;
     cout << strPathLeft << endl;
@@ -328,8 +350,14 @@ void LoadImagesTUMVI(const string& strPathLeft, const string& strPathRight, cons
             int pos = s.find(' ');
             string item = s.substr(0, pos);
 
-            vstrImageLeft.push_back(strPathLeft + "/" + item + ".png");
-            vstrImageRight.push_back(strPathRight + "/" + item + ".png");
+            if (bDeepFeature) {
+                vstrImageLeft.push_back(strPathLeft + "/" + item + ".tiff");
+                vstrImageRight.push_back(strPathRight + "/" + item + ".tiff");
+            } else {
+                vstrImageLeft.push_back(strPathLeft + "/" + item + ".png");
+                vstrImageRight.push_back(strPathRight + "/" + item + ".png");
+            }
+
             vstrImageConf.push_back(strPathConf + "/" + item + ".tiff");
 
             double t = stod(item);
