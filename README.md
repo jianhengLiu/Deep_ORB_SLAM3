@@ -1,3 +1,15 @@
+# Deep-ORB-SLAM3
+
+通过`http://10.10.3.180:8081/liu.jh/pixloc-modified/blob/master/notebooks/pixloc_slam.py`程序提前把数据集的图片使用网络生成并保存特征图和置信图(i.e. 分别保存在`/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam0/feat_fine`和`/home/innox/datasets/dataset-outdoors8_512_16/mav0/cam0/conf_fine`)
+
+**运行命令**
+
+`./Examples/Stereo-Inertial/deep_stereo_inertial_tum_vi_test`
+
+**衡量命令**
+
+`python evaluation/evaluate_ate_scale.py /home/innox/datasets/dataset-outdoors8_512_16/mav0/mocap0/data.csv f_outdoors8_512_stereoi_deep_pose_feat.txt --plot outdoors8_512_stereoi_deep_pose_feat.pdf`
+
 # ORB-SLAM3
 
 ### V1.0, December 22th, 2021
